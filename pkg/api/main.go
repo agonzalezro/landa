@@ -1,24 +1,36 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
 
-type FunctionsAPI struct {
-	Functions map[string]string
+type Cluster interface {
+	Deployer
 }
 
-func NewFunctionsAPI() FunctionsAPI {
-	return FunctionsAPI{
-		Functions: make(map[string]string),
+type Deployer interface {
+	DeployFunction(context.Context, string, string) (string, error)
+}
+
+type LandaAPI struct {
+	Cluster   Cluster
+	Functions map[string]Landa
+}
+
+func New(cluster Cluster) LandaAPI {
+	return LandaAPI{
+		Cluster:   cluster,
+		Functions: make(map[string]Landa),
 	}
 }
 
-func (api *FunctionsAPI) CreateFunction(w http.ResponseWriter, r *http.Request) {
-	var f Function
+func (api *LandaAPI) CreateFunction(w http.ResponseWriter, r *http.Request) {
+	var f Landa
 
 	if err := json.NewDecoder(r.Body).Decode(&f); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -31,7 +43,7 @@ func (api *FunctionsAPI) CreateFunction(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	api.Functions[f.ID] = f.Code
+	api.Functions[f.ID] = Landa{ID: f.ID, Code: f.Code}
 
 	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(f); err != nil {
@@ -39,28 +51,34 @@ func (api *FunctionsAPI) CreateFunction(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	go func() {
+		url, err := api.Cluster.DeployFunction(context.TODO(), f.ID, f.Code)
+		if err != nil {
+			log.Println(err)
+		}
+
+		f := api.Functions[f.ID]
+		f.URL = url
+		api.Functions[f.ID] = f
+	}()
 }
 
-func (api *FunctionsAPI) GetFunctionByID(w http.ResponseWriter, r *http.Request) {
+func (api *LandaAPI) GetFunctionByID(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
-	code, ok := api.Functions[id]
+	f, ok := api.Functions[id]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(Function{
-		ID:   id,
-		Code: code,
-	}); err != nil {
+	if err := json.NewEncoder(w).Encode(f); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }
 
-func Install(r *mux.Router) *mux.Router {
-	api := NewFunctionsAPI()
+func (api *LandaAPI) RegisterHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/functions", api.CreateFunction).Methods(http.MethodPost)
 	r.HandleFunc("/functions/{id}", api.GetFunctionByID).Methods(http.MethodGet)
 	return r
