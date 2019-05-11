@@ -1,4 +1,4 @@
-module github.com/agonzalezro/landa
+module lambda-control-plane
 
 require (
 	github.com/gogo/protobuf v1.2.1 // indirect

@@ -9,8 +9,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/agonzalezro/landa/pkg/api"
-	"github.com/agonzalezro/landa/pkg/cluster"
+	"lambda-control-plane/pkg/api"
+	"lambda-control-plane/pkg/cluster"
 )
 
 func buildAddress(addr string) string {

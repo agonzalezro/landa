@@ -1,9 +1,9 @@
-landa
-=====
+lambda-control-plane
+====================
 
 ![](https://estaticos3.larazon.es/documents/10165/0/image_content_low_548139_20130510133304.jpg)
 
-landa is a service that allows you to manage your landa functions. When you create a function it will be deployed on
+lambda-control-plane (aka landa) is a service that allows you to manage your landa functions. When you create a function it will be deployed on
 Kubernetes and you will be able to call it.
 
 Dev'ing
