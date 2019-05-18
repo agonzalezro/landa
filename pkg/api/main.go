@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -78,8 +79,35 @@ func (api *LandaAPI) GetFunctionByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (api *LandaAPI) CallFunctionByID(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+
+	f, ok := api.Functions[id]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	req, err := http.NewRequest(r.Method, f.URL, r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(resp.StatusCode)
+	bs, _ := ioutil.ReadAll(resp.Body) // TODO: we don't always have a body, this should be enough for now
+	w.Write(bs)
+}
+
 func (api *LandaAPI) RegisterHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/functions", api.CreateFunction).Methods(http.MethodPost)
 	r.HandleFunc("/functions/{id}", api.GetFunctionByID).Methods(http.MethodGet)
+	r.HandleFunc("/functions/{id}:call", api.CallFunctionByID)
 	return r
 }

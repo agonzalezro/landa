@@ -1,6 +1,8 @@
 lambda-control-plane
 ====================
 
+**Disclaimer: this code isn't production ready, it's just a small demo for Kubecon.**
+
 ![](https://estaticos3.larazon.es/documents/10165/0/image_content_low_548139_20130510133304.jpg)
 
 lambda-control-plane (aka landa) is a service that allows you to manage your landa functions. When you create a function it will be deployed on
@@ -23,10 +25,9 @@ Using it
 
     http localhost:9094/functions code=xxx
     http localhost:9094/functions/[id] # where id is the id returned by the previous call
-    http localhost:9094/functions/[id]:call # NOT IMPLEMENTED YET
+    http localhost:9094/functions/[id]:call
 
-TODO
-----
+Hacking around
+--------------
 
-- [ ] Use lambda-engine instead the nginx image we are using as an example.
-- [ ] Allow to call functions.
+There is a script called `clean_and_run.sh` that will clean up your Kubernetes environment, create a function an call it.
