@@ -1,0 +1,4 @@
+{
+  "foo":"Hello from a lambda function",
+  "bar":"in Kubecon Barcelona"
+}

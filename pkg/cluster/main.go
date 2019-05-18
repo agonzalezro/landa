@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -46,16 +45,25 @@ type Cluster struct {
 	clientset *kubernetes.Clientset
 }
 
-func (c *Cluster) DeployFunction(ctx context.Context, id, code string) (string, error) {
+func (c *Cluster) DeployFunction(ctx context.Context, id, code string) error {
 	if err := c.createDeployment(ctx, id, code); err != nil {
-		return "", err
+		return err
 	}
 
-	s, err := c.createService(ctx, id)
+	_, err := c.createService(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Cluster) GetFunctionUrl(ctx context.Context, id string) (string, error) {
+	service, err := c.getService(ctx, id)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("http://localhost:%v", s.Spec.Ports[0].NodePort), nil // TODO: localhost is a hacky get to get this running quick&dirty on docker for mac
+	return service.Status.LoadBalancer.Ingress[0].IP, nil
 }
 
 func (c *Cluster) buildEnvVars(ctx context.Context, code string) []corev1.EnvVar {
@@ -130,7 +138,7 @@ func (c *Cluster) createService(_ context.Context, id string) (*corev1.Service, 
 			Selector: map[string]string{
 				functionLabelKey: id,
 			},
-			Type: corev1.ServiceTypeNodePort,
+			Type: corev1.ServiceTypeLoadBalancer,
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",
@@ -143,4 +151,9 @@ func (c *Cluster) createService(_ context.Context, id string) (*corev1.Service, 
 	}
 
 	return c.clientset.CoreV1().Services(apiv1.NamespaceDefault).Create(service)
+}
+
+func (c *Cluster) getService(_ context.Context, id string) (*corev1.Service, error) {
+	options := metav1.GetOptions{}
+	return c.clientset.CoreV1().Services(apiv1.NamespaceDefault).Get(id, options)
 }
