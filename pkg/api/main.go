@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"lambda-control-plane/pkg/model"
 	"log"
-
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
+
+	"lambda-control-plane/pkg/model"
 )
+
+const contentTypeJSON = "application/json"
 
 type Cluster interface {
 	Deployer
@@ -59,7 +61,6 @@ func (api *LandaAPI) CreateFunction(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		err := api.Cluster.DeployFunction(context.TODO(), functionMetaData)
-		fmt.Println("Deploying function " + functionMetaData.ID)
 		if err != nil {
 			log.Println(err)
 			return
@@ -74,7 +75,8 @@ func (api *LandaAPI) CreateFunction(w http.ResponseWriter, r *http.Request) {
 		f := api.Functions[functionMetaData.ID]
 		f.URL = url
 		api.Functions[f.ID] = f
-		fmt.Println("function " + functionMetaData.ID + " ingress ip " + url)
+
+		log.Printf("[DEBUG] Stored '%s' as function '%s' ingress IP", url, functionMetaData.ID)
 	}()
 }
 
@@ -95,7 +97,6 @@ func (api *LandaAPI) GetFunctionByID(w http.ResponseWriter, r *http.Request) {
 
 func (api *LandaAPI) CallFunctionByID(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
-	fmt.Println("Calling lambda " + id)
 
 	f, ok := api.Functions[id]
 	if !ok {
@@ -103,17 +104,12 @@ func (api *LandaAPI) CallFunctionByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//TODO Port should be configurable
+	// TODO: Port should be configurable
 	url := fmt.Sprintf("http://%s:9443", f.URL)
-	fmt.Println("on " + url)
-	//Always post
-	req, err := http.NewRequest(http.MethodPost, url, r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
 
-	resp, err := http.DefaultClient.Do(req)
+	log.Printf("[DEBUG] Function '%s' serving on '%s'\n", id, url)
+
+	resp, err := http.DefaultClient.Post(url, contentTypeJSON, r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

@@ -60,4 +60,4 @@ EndOfFunction
 ID=$(http POST localhost:8080/functions code="$FUNCTION_CODE" entryPoint="kubecondemo.HelloWorld.sayHello"|jq .id|tr -d "\"")
 echo $ID
 echo "To call your deployed function execute"
-echo curl -X POST localhost:8080/functions/${ID}:call -d @functionCall.json
+echo curl -i -X POST localhost:8080/functions/${ID}:call -d @functionCall.json

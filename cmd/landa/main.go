@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
 	"lambda-control-plane/pkg/api"
@@ -35,5 +36,5 @@ func main() {
 
 	addr := buildAddress(*addrFlag)
 	log.Println("Listening on addr", addr)
-	log.Fatal(http.ListenAndServe(addr, r))
+	log.Fatal(http.ListenAndServe(addr, handlers.LoggingHandler(os.Stdout, r)))
 }
