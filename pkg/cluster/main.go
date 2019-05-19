@@ -2,6 +2,8 @@ package cluster
 
 import (
 	"context"
+	"fmt"
+	"lambda-control-plane/pkg/model"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -45,12 +47,18 @@ type Cluster struct {
 	clientset *kubernetes.Clientset
 }
 
-func (c *Cluster) DeployFunction(ctx context.Context, id, code string) error {
-	if err := c.createDeployment(ctx, id, code); err != nil {
+func generateServiceId(id string) string {
+	return fmt.Sprintf("%s-%s", "svc", id[0:15])
+}
+
+func (c *Cluster) DeployFunction(ctx context.Context, functionMetadata model.Landa) error {
+	id := functionMetadata.ID
+
+	if err := c.createDeployment(ctx, functionMetadata); err != nil {
 		return err
 	}
 
-	_, err := c.createService(ctx, id)
+	_, err := c.createService(ctx, generateServiceId(id))
 	if err != nil {
 		return err
 	}
@@ -59,18 +67,20 @@ func (c *Cluster) DeployFunction(ctx context.Context, id, code string) error {
 }
 
 func (c *Cluster) GetFunctionUrl(ctx context.Context, id string) (string, error) {
-	service, err := c.getService(ctx, id)
+	service, err := c.getService(ctx, generateServiceId(id))
 	if err != nil {
 		return "", err
 	}
 	return service.Status.LoadBalancer.Ingress[0].IP, nil
 }
 
-func (c *Cluster) buildEnvVars(ctx context.Context, code string) []corev1.EnvVar {
+func (c *Cluster) buildEnvVars(ctx context.Context, functionMetadata model.Landa) []corev1.EnvVar {
+	code := functionMetadata.Code
+	entryPoint := functionMetadata.EntryPoint
 	kvs := map[string]string{
 		"FUNCTION_CODE":             code,
-		"FUNCTION_ENTRYPOINT":       "chispas.Chispas.doChispas", // TODO (for this and following envs): parametrize or hardcode in the engine
-		"functionName":              "chispas.Chispas.doChispas", // TODO: uppercase
+		"FUNCTION_ENTRYPOINT":       entryPoint, // TODO (for this and following envs): parametrize or hardcode in the engine
+		"functionName":              entryPoint, // TODO: uppercase
 		"COMPILE_CLASSPATH":         "/lambda-server/*",
 		"FUNCTION_SERVER_CLASSPATH": "/lambda-server/*",
 		"BUILD_DIR":                 "/tmp",
@@ -84,7 +94,8 @@ func (c *Cluster) buildEnvVars(ctx context.Context, code string) []corev1.EnvVar
 	return envVars
 }
 
-func (c *Cluster) createDeployment(ctx context.Context, id, code string) error {
+func (c *Cluster) createDeployment(ctx context.Context, functionMetadata model.Landa) error {
+	id := functionMetadata.ID
 	var replicas int32 = 1
 
 	deployment := &appsv1.Deployment{
@@ -95,13 +106,13 @@ func (c *Cluster) createDeployment(ctx context.Context, id, code string) error {
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					functionLabelKey: id,
+					functionLabelKey: generateServiceId(id),
 				},
 			},
 			Template: apiv1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						functionLabelKey: id,
+						functionLabelKey: generateServiceId(id),
 					},
 				},
 				Spec: apiv1.PodSpec{
@@ -117,7 +128,7 @@ func (c *Cluster) createDeployment(ctx context.Context, id, code string) error {
 									ContainerPort: lambdaServerPort,
 								},
 							},
-							Env: c.buildEnvVars(ctx, code),
+							Env: c.buildEnvVars(ctx, functionMetadata),
 						},
 					},
 				},

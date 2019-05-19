@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"lambda-control-plane/pkg/model"
 	"log"
+
 	"net/http"
 	"time"
 
@@ -17,24 +19,24 @@ type Cluster interface {
 }
 
 type Deployer interface {
-	DeployFunction(context.Context, string, string) error
+	DeployFunction(context.Context, model.Landa) error
 	GetFunctionUrl(context.Context, string) (string, error)
 }
 
 type LandaAPI struct {
 	Cluster   Cluster
-	Functions map[string]Landa
+	Functions map[string]model.Landa
 }
 
 func New(cluster Cluster) LandaAPI {
 	return LandaAPI{
 		Cluster:   cluster,
-		Functions: make(map[string]Landa),
+		Functions: make(map[string]model.Landa),
 	}
 }
 
 func (api *LandaAPI) CreateFunction(w http.ResponseWriter, r *http.Request) {
-	var functionMetaData Landa
+	var functionMetaData model.Landa
 
 	if err := json.NewDecoder(r.Body).Decode(&functionMetaData); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -47,7 +49,7 @@ func (api *LandaAPI) CreateFunction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.Functions[functionMetaData.ID] = Landa{ID: functionMetaData.ID, Code: functionMetaData.Code}
+	api.Functions[functionMetaData.ID] = model.Landa{ID: functionMetaData.ID, Code: functionMetaData.Code}
 
 	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(functionMetaData); err != nil {
@@ -56,7 +58,7 @@ func (api *LandaAPI) CreateFunction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		err := api.Cluster.DeployFunction(context.TODO(), functionMetaData.ID, functionMetaData.Code)
+		err := api.Cluster.DeployFunction(context.TODO(), functionMetaData)
 		fmt.Println("Deploying function " + functionMetaData.ID)
 		if err != nil {
 			log.Println(err)
@@ -65,7 +67,7 @@ func (api *LandaAPI) CreateFunction(w http.ResponseWriter, r *http.Request) {
 		//TODO need to wait until LB has been created and IP published. Now wait some seconds
 		time.Sleep(5 * time.Second)
 		url, err := api.Cluster.GetFunctionUrl(context.TODO(), functionMetaData.ID)
-		if err != nil {
+		if err != nil || url == "" {
 			log.Println(err)
 			return
 		}
